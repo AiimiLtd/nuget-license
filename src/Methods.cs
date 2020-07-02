@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -341,7 +342,7 @@ namespace NugetUtility
         {
             if (_packageOptions.AllowedLicenseType.Count == 0)
             {
-                return new ValidationResult<KeyValuePair<string,Package>> { IsValid = true };
+                return new ValidationResult<KeyValuePair<string, Package>> { IsValid = true };
             }
 
             WriteOutput(() => $"Starting {nameof(ValidateLicenses)}...", logLevel: LogLevel.Verbose);
@@ -624,19 +625,47 @@ namespace NugetUtility
 
         private void WriteOutput(string line, Exception exception = null, LogLevel logLevel = LogLevel.Information) => WriteOutput(() => line, exception, logLevel);
 
-        public async Task ExportLicenseTexts(List<LibraryInfo> infos)
+        public async Task ExportLicenseTexts(bool combineTexts, List<LibraryInfo> infos)
         {
             var directory = GetOutputDirectory();
-            foreach (var info in infos.Where(i => !string.IsNullOrEmpty(i.LicenseUrl)))
+
+            var outpath = "";
+            if (combineTexts)
             {
-                var source = info.LicenseUrl;
-                var outpath = Path.Combine(directory, info.PackageName + info.PackageVersion + ".txt");
-                if (File.Exists(outpath))
+                outpath = Path.Combine(directory, $"AllLicenses{DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss")}.txt");
+            }
+
+            foreach (var info in infos)
+            {
+                var source = string.IsNullOrEmpty(info.LicenseUrl) ? info.PackageUrl : info.LicenseUrl;
+
+                if (string.IsNullOrEmpty(outpath))
+                {
+                    outpath = Path.Combine(directory, info.PackageName + info.PackageVersion + ".txt");
+                }
+
+                if (File.Exists(outpath) && !combineTexts)
                 {
                     continue;
                 }
 
                 // Correct some uris
+                try
+                {
+                    source = this.InsightMakerPackages()[info.PackageName];
+                }
+                catch
+                {
+                    // The author of the package we're currently looking at set up the license properly so we don't have to go and fix it manually, hooray!
+                }
+                if (info.PackageUrl == "https://github.com/elastic/elasticsearch-net")
+                {
+                    source = "https://github.com/elastic/elasticsearch-net/blob/master/license.txt";
+                }
+                if (source.StartsWith("https://aka.ms/deprecateLicenseUrl", StringComparison.Ordinal) && info.PackageUrl.StartsWith("https://github.com", StringComparison.Ordinal))
+                {
+                    source = $"{info.PackageUrl}/blob/master/LICENSE";
+                }
                 if (source.StartsWith("https://github.com", StringComparison.Ordinal) && source.Contains("/blob/", StringComparison.Ordinal))
                 {
                     source = source.Replace("/blob/", "/raw/", StringComparison.Ordinal);
@@ -645,38 +674,60 @@ namespace NugetUtility
                 {
                     source = source.Replace("/dotnet/corefx/", "/dotnet/runtime/", StringComparison.Ordinal);
                 }
+                if (source.Contains("dropbox/dropbox-sdk-dotnet/raw/master", StringComparison.Ordinal))
+                {
+                    source = source.Replace("/master/", "/master/dropbox-sdk-dotnet/", StringComparison.Ordinal);
+                }
 
                 do
                 {
                     WriteOutput(() => $"Attempting to download {source} to {outpath}", logLevel: LogLevel.Verbose);
-                    using (var request = new HttpRequestMessage(HttpMethod.Get, source))
-                    using (var response = await _httpClient.SendAsync(request))
+                    try
                     {
-                        if (!response.IsSuccessStatusCode)
+                        using (var request = new HttpRequestMessage(HttpMethod.Get, source))
+                        using (var response = await _httpClient.SendAsync(request))
                         {
-                            WriteOutput($"{request.RequestUri} failed due to {response.StatusCode}!", logLevel: LogLevel.Error);
+                            if (!response.IsSuccessStatusCode)
+                            {
+                                WriteOutput($"{request.RequestUri} failed due to {response.StatusCode}!", logLevel: LogLevel.Error);
+                                await this.WriteToFile(outpath, $"NO LICENSE TEXT RETRIEVED\nProvided URL: {source}\nTry: https://www.nuget.org/packages/{info.PackageName}/ \n", info.PackageName);
+                                await this.WriteToFile(@".\FailedLicenses.txt", $"{source}\n", info.PackageName);
+                                break;
+                            }
+
+                            // Somebody redirected us to github. Correct the uri and try again
+                            var realRequestUri = response.RequestMessage.RequestUri.AbsoluteUri;
+                            if (
+                                IsGithub(realRequestUri)
+                                && !IsGithub(source))
+                            {
+                                WriteOutput(() => " Redirect detected", logLevel: LogLevel.Verbose);
+                                source = CorrectUri(realRequestUri);
+                                continue;
+                            }
+
+
+                            await this.WriteToFile(outpath, this.TidyHTMLText(await response.Content.ReadAsStringAsync()), info.PackageName, source);
                             break;
                         }
-
-                        // Somebody redirected us to github. Correct the uri and try again
-                        var realRequestUri = response.RequestMessage.RequestUri.AbsoluteUri;
-                        if (
-                            IsGithub(realRequestUri)
-                            && !IsGithub(source))
-                        {
-                            WriteOutput(() => " Redirect detected", logLevel: LogLevel.Verbose);
-                            source = CorrectUri(realRequestUri);
-                            continue;
-                        }
-
-                        using (var fileStream = File.OpenWrite(outpath))
-                        {
-                            await response.Content.CopyToAsync(fileStream);
-                        }
+                    }
+                    catch (Exception Ex)
+                    {
+                        WriteOutput($"License retrieval error for {info.PackageName}!", logLevel: LogLevel.Error);
+                        await this.WriteToFile(outpath, $"NO LICENSE TEXT RETRIEVED.\nAn error ccured while attempting to retrive the licence information from {source}.\n", info.PackageName);
+                        await this.WriteToFile(@".\FailedLicenses.txt", "\n", info.PackageName);
                         break;
                     }
                 } while (true);
             }
+        }
+
+        private async Task WriteToFile(string outpath, string content, string packageName, string crawledUrl = "")
+        {
+            var separator = $"\n-----------License for {packageName}-----------\n";
+            await File.AppendAllTextAsync(outpath, separator);
+            await File.AppendAllTextAsync(outpath, $"{crawledUrl}\n");
+            await File.AppendAllTextAsync(outpath, content);
         }
 
         private bool IsGithub(string uri)
@@ -702,5 +753,26 @@ namespace NugetUtility
 
             return uri;
         }
+
+        private string TidyHTMLText(string text)
+        {
+            // Combining the regex statements with | doesn't resolve properly.
+            string content = Regex.Replace(text, @"<[^>]*>", String.Empty);
+            return Regex.Replace(content, @"^\s+$[\r\n]*", string.Empty, RegexOptions.Multiline);
+        }
+
+        private Dictionary<string, string> InsightMakerPackages() => new Dictionary<string, string>()
+        {
+            {"CommandLineParser", "https://github.com/commandlineparser/commandline/blob/master/License.md" },
+            {"Microsoft.SharePointOnline.CSOM","https://download.microsoft.com/download/7/4/0/740830AA-F5E3-48A6-8645-EC3F82A17C81/MicrosoftSharePointClientComponentsEULA.rtf"},
+            {"GeoUK", "https://licenses.nuget.org/LGPL-3.0-or-later" },
+            {"DotNetSeleniumExtras.WaitHelpers","https://github.com/DotNetSeleniumTools/DotNetSeleniumExtras/blob/master/LICENSE" },
+            {"PuppeteerSharp", "https://github.com/hardkoded/puppeteer-sharp/blob/master/LICENSE" },
+            {"Select.Pdf.NetCore", "https://selectpdf.com/eula/" },
+            {"ModulusChecker", "https://github.com/pauldambra/ModulusChecker/blob/master/MIT-LICENSE.txt" },
+            {"RestSharp", "https://github.com/restsharp/RestSharp/blob/dev/LICENSE.txt" },
+            {"System.Interactive.Async","https://github.com/dotnet/reactive/blob/master/LICENSE" }
+        };
+
     }
 }

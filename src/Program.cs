@@ -32,7 +32,7 @@ namespace NugetUtility
 
             if (options.ExportLicenseTexts)
             {
-                await methods.ExportLicenseTexts(mappedLibraryInfo);
+                await methods.ExportLicenseTexts(options.CombineLicenseTexts, mappedLibraryInfo);
             }
 
             if (options.Print == true)
