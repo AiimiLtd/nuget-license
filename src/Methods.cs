@@ -630,6 +630,7 @@ namespace NugetUtility
             var directory = GetOutputDirectory();
 
             var failedPath = Path.Combine(directory, "FailedLicenses.txt");
+            var indexPath = Path.Combine(directory, "Index.txt");
 
             var outpath = "";
             if (combineTexts)
@@ -680,7 +681,7 @@ namespace NugetUtility
                 {
                     source = source.Replace("/master/", "/master/dropbox-sdk-dotnet/", StringComparison.Ordinal);
                 }
-
+                this.WriteToFile(indexPath, $"\n{info.PackageName}: {source}\n", info.PackageName, info.PackageVersion);
                 do
                 {
                     WriteOutput(() => $"Attempting to download {source} to {outpath}", logLevel: LogLevel.Verbose);
@@ -692,8 +693,8 @@ namespace NugetUtility
                             if (!response.IsSuccessStatusCode)
                             {
                                 WriteOutput($"{request.RequestUri} failed due to {response.StatusCode}!", logLevel: LogLevel.Error);
-                                await this.WriteToFile(outpath, $"NO LICENSE TEXT RETRIEVED\nProvided URL: {source}\nTry: https://www.nuget.org/packages/{info.PackageName}/ \n", info.PackageName);
-                                await this.WriteToFile(failedPath, $"{source}\n", info.PackageName);
+                                await this.WriteToFile(outpath, $"NO LICENSE TEXT RETRIEVED\nProvided URL: {source}\nTry: https://www.nuget.org/packages/{info.PackageName}/ \n", info.PackageName, info.PackageVersion);
+                                await this.WriteToFile(failedPath, $"{source}\n", info.PackageName, info.PackageVersion);
                                 break;
                             }
 
@@ -708,25 +709,38 @@ namespace NugetUtility
                                 continue;
                             }
 
+                            try
+                            {
+                                if (this.isHTMLPage(await response.Content.ReadAsStringAsync()))
+                                {
+                                    var potentialLicenseFile = this.SearchInPackageDirectory(info.PackageName, info.PackageVersion);
+                                    if (!string.IsNullOrEmpty(potentialLicenseFile))
+                                    {
+                                        await this.WriteToFile(outpath, this.TidyRTFText(File.ReadAllText(potentialLicenseFile)), info.PackageName, info.PackageVersion);
+                                        break;
+                                    }
+                                }
+                            }
+                            catch { }
 
-                            await this.WriteToFile(outpath, this.TidyHTMLText(await response.Content.ReadAsStringAsync()), info.PackageName, source);
+                            await this.WriteToFile(outpath, this.TidyHTMLText(await response.Content.ReadAsStringAsync()), info.PackageName, info.PackageVersion, source);
                             break;
                         }
                     }
                     catch (Exception Ex)
                     {
                         WriteOutput($"License retrieval error for {info.PackageName}!", logLevel: LogLevel.Error);
-                        await this.WriteToFile(outpath, $"NO LICENSE TEXT RETRIEVED.\nAn error ccured while attempting to retrive the licence information from {source}.\n", info.PackageName);
-                        await this.WriteToFile(failedPath, "\n", info.PackageName);
+                        await this.WriteToFile(outpath, $"NO LICENSE TEXT RETRIEVED.\nAn error ccured while attempting to retrive the licence information from {source}.\n", info.PackageName, info.PackageVersion);
+                        await this.WriteToFile(failedPath, "\n", info.PackageName, info.PackageVersion);
                         break;
                     }
                 } while (true);
             }
         }
 
-        private async Task WriteToFile(string outpath, string content, string packageName, string crawledUrl = "")
+        private async Task WriteToFile(string outpath, string content, string packageName, string packageVersion, string crawledUrl = "")
         {
-            var separator = $"\n-----------License for {packageName}-----------\n";
+            var separator = $"\n-----------License for {packageName} - Version: {packageVersion}-----------\n";
             await File.AppendAllTextAsync(outpath, separator);
             await File.AppendAllTextAsync(outpath, $"{crawledUrl}\n");
             await File.AppendAllTextAsync(outpath, content);
@@ -756,6 +770,25 @@ namespace NugetUtility
             return uri;
         }
 
+        private bool isHTMLPage(string content) => Regex.IsMatch(content, @"<[^>]*>") ? true : false;
+
+        private string SearchInPackageDirectory(string packageName, string packageVersion)
+        {
+            var packageBase = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages", packageName, packageVersion);
+            var filesInLocation = Directory.GetFiles(packageBase, "*.*", SearchOption.AllDirectories);
+            if(filesInLocation.Any(f => f.ToLower().Contains("license") && !f.ToLower().EndsWith(".pdf")))
+            {
+                return Path.Combine(packageBase, filesInLocation.Where(f => f.ToLower().Contains("license")).First());
+            }
+            return "";
+        }
+
+        private string TidyRTFText(string text)
+        {
+            string content =  Regex.Replace(text, @"{[^}]*}", String.Empty);
+            return Regex.Replace(content, @"\\.*?\\", string.Empty);
+        }
+
         private string TidyHTMLText(string text)
         {
             // Combining the regex statements with | doesn't resolve properly.
@@ -773,7 +806,10 @@ namespace NugetUtility
             {"Select.Pdf.NetCore", "https://selectpdf.com/eula/" },
             {"ModulusChecker", "https://github.com/pauldambra/ModulusChecker/blob/master/MIT-LICENSE.txt" },
             {"RestSharp", "https://github.com/restsharp/RestSharp/blob/dev/LICENSE.txt" },
-            {"System.Interactive.Async","https://github.com/dotnet/reactive/blob/master/LICENSE" }
+            {"System.Interactive.Async","https://github.com/dotnet/reactive/blob/master/LICENSE" },
+            {"Microsoft.Graph", "https://www.nuget.org/packages/Microsoft.Graph/3.8.0/License" },
+            {"Microsoft.Graph.Core", "https://www.nuget.org/packages/Microsoft.Graph.Core/1.20.1/License" },
+            {"NUnit", "https://www.nuget.org/packages/NUnit/3.12.0/License" }
         };
 
     }
