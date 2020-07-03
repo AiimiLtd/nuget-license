@@ -629,12 +629,14 @@ namespace NugetUtility
         {
             var directory = GetOutputDirectory();
 
+            var failedPath = Path.Combine(directory, "FailedLicenses.txt");
+
             var outpath = "";
             if (combineTexts)
             {
                 outpath = Path.Combine(directory, $"AllLicenses{DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss")}.txt");
             }
-
+            Directory.CreateDirectory(directory);
             foreach (var info in infos)
             {
                 var source = string.IsNullOrEmpty(info.LicenseUrl) ? info.PackageUrl : info.LicenseUrl;
@@ -691,7 +693,7 @@ namespace NugetUtility
                             {
                                 WriteOutput($"{request.RequestUri} failed due to {response.StatusCode}!", logLevel: LogLevel.Error);
                                 await this.WriteToFile(outpath, $"NO LICENSE TEXT RETRIEVED\nProvided URL: {source}\nTry: https://www.nuget.org/packages/{info.PackageName}/ \n", info.PackageName);
-                                await this.WriteToFile(@".\FailedLicenses.txt", $"{source}\n", info.PackageName);
+                                await this.WriteToFile(failedPath, $"{source}\n", info.PackageName);
                                 break;
                             }
 
@@ -715,7 +717,7 @@ namespace NugetUtility
                     {
                         WriteOutput($"License retrieval error for {info.PackageName}!", logLevel: LogLevel.Error);
                         await this.WriteToFile(outpath, $"NO LICENSE TEXT RETRIEVED.\nAn error ccured while attempting to retrive the licence information from {source}.\n", info.PackageName);
-                        await this.WriteToFile(@".\FailedLicenses.txt", "\n", info.PackageName);
+                        await this.WriteToFile(failedPath, "\n", info.PackageName);
                         break;
                     }
                 } while (true);

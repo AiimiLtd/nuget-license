@@ -23,7 +23,7 @@ namespace NugetUtility
         [Option("include-project-file", Default = false, HelpText = "Adds project file path to information when enabled.")]
         public bool IncludeProjectFile { get; set; }
 
-        [Option('l', "log-level", Default = LogLevel.Error, HelpText = "Sets log level for output display. Options: Error|Warning|Information|Verbose.")]
+        [Option('l', "log-level", Default = LogLevel.Information, HelpText = "Sets log level for output display. Options: Error|Warning|Information|Verbose.")]
         public LogLevel LogLevelThreshold { get; set; }
 
         [Option("manual-package-information", Default = null, HelpText = "Simple json file of an array of LibraryInfo objects for manually determined packages.")]
@@ -47,16 +47,16 @@ namespace NugetUtility
         [Option("packages-filter", Default = null, HelpText = "Simple json file of a text array of packages to skip.")]
         public string PackagesFilterOption { get; set; }
 
-        [Option('u', "unique", Default = false, HelpText = "Unique licenses list by Id/Version")]
+        [Option('u', "unique", Default = true, HelpText = "Unique licenses list by Id/Version")]
         public bool UniqueOnly { get; set; }
 
-        [Option('p', "print", Default = true, HelpText = "Print licenses.")]
+        [Option('p', "print", Default = false, HelpText = "Print licenses.")]
         public bool? Print { get; set; }
 
-        [Option("export-license-texts", Default = false, HelpText = "Exports the raw license texts")]
+        [Option("export-license-texts", Default = true, HelpText = "Exports the raw license texts")]
         public bool ExportLicenseTexts { get; set; }
 
-        [Option('c', "combine", Default = false, HelpText = "Combines the license texts as one")]
+        [Option('c', "combine", Default = true, HelpText = "Combines the license texts as one")]
         public bool CombineLicenseTexts { get; set; }
 
         [Usage(ApplicationAlias = "dotnet-project-licenses")]
