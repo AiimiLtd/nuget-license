@@ -59,6 +59,15 @@ namespace NugetUtility
         [Option('c', "combine", Default = true, HelpText = "Combines the license texts as one")]
         public bool CombineLicenseTexts { get; set; }
 
+        [Option("python", Default = false, HelpText = "Finds python licenses from requirements files")]
+        public bool PythonLicenses { get; set; }
+
+        [Option("requirements-location", Default = @".\scripts\PythonRestService\")]
+        public string PythonRequirementsLocation { get; set; }
+
+        [Option('n', "nuget", Default = true, HelpText = "Finds nuget licenses from the project's packages")]
+        public bool NugetLicenses { get; set; }
+
         [Usage(ApplicationAlias = "dotnet-project-licenses")]
         public static IEnumerable<Example> Examples
         {

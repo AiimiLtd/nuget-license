@@ -25,30 +25,39 @@ namespace NugetUtility
                 return 1;
             }
 
-            Methods methods = new Methods(options);
-            var projectsWithPackages = await methods.GetPackages();
-            var mappedLibraryInfo = methods.MapPackagesToLibraryInfo(projectsWithPackages);
-            HandleInvalidLicenses(methods, mappedLibraryInfo, options.AllowedLicenseType);
-
-            if (options.ExportLicenseTexts)
+            if (options.NugetLicenses)
             {
-                await methods.ExportLicenseTexts(options.CombineLicenseTexts, mappedLibraryInfo);
+                Methods methods = new Methods(options);
+                var projectsWithPackages = await methods.GetPackages();
+                var mappedLibraryInfo = methods.MapPackagesToLibraryInfo(projectsWithPackages);
+                HandleInvalidLicenses(methods, mappedLibraryInfo, options.AllowedLicenseType);
+
+                if (options.ExportLicenseTexts)
+                {
+                    await methods.ExportLicenseTexts(options.CombineLicenseTexts, mappedLibraryInfo);
+                }
+
+                if (options.Print == true)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("Project Reference(s) Analysis...");
+                    methods.PrintLicenses(mappedLibraryInfo);
+                }
+
+                if (options.JsonOutput)
+                {
+                    methods.SaveAsJson(mappedLibraryInfo);
+                }
+                else
+                {
+                    methods.SaveAsTextFile(mappedLibraryInfo);
+                }
             }
 
-            if (options.Print == true)
+            if (options.PythonLicenses)
             {
-                Console.WriteLine();
-                Console.WriteLine("Project Reference(s) Analysis...");
-                methods.PrintLicenses(mappedLibraryInfo);
-            }
-
-            if (options.JsonOutput)
-            {
-                methods.SaveAsJson(mappedLibraryInfo);
-            }
-            else
-            {
-                methods.SaveAsTextFile(mappedLibraryInfo);
+                var python = new PyPi(options.PythonRequirementsLocation);
+                await python.Run(options.OutputFileName);
             }
 
             return 0;
