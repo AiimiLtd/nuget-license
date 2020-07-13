@@ -625,7 +625,7 @@ namespace NugetUtility
 
         private void WriteOutput(string line, Exception exception = null, LogLevel logLevel = LogLevel.Information) => WriteOutput(() => line, exception, logLevel);
 
-        public async Task ExportLicenseTexts(bool combineTexts, List<LibraryInfo> infos)
+        public async Task ExportLicenseTexts(List<LibraryInfo> infos)
         {
             var directory = GetOutputDirectory();
 
@@ -633,7 +633,7 @@ namespace NugetUtility
             var indexPath = Path.Combine(directory, "Index.txt");
 
             var outpath = "";
-            if (combineTexts)
+            if (_packageOptions.CombineLicenseTexts)
             {
                 outpath = Path.Combine(directory, $"AllLicenses{DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss")}.txt");
             }
@@ -647,7 +647,7 @@ namespace NugetUtility
                     outpath = Path.Combine(directory, info.PackageName + info.PackageVersion + ".txt");
                 }
 
-                if (File.Exists(outpath) && !combineTexts)
+                if (File.Exists(outpath) && !_packageOptions.CombineLicenseTexts)
                 {
                     continue;
                 }
@@ -681,7 +681,6 @@ namespace NugetUtility
                 {
                     source = source.Replace("/master/", "/master/dropbox-sdk-dotnet/", StringComparison.Ordinal);
                 }
-                this.WriteToFile(indexPath, $"\n{info.PackageName}: {source}\n", info.PackageName, info.PackageVersion);
                 do
                 {
                     WriteOutput(() => $"Attempting to download {source} to {outpath}", logLevel: LogLevel.Verbose);
@@ -708,6 +707,13 @@ namespace NugetUtility
                                 source = CorrectUri(realRequestUri);
                                 continue;
                             }
+
+                            await Task.Run(async () =>
+                             {
+                                  //Take first 3 lines of the content.
+                                 await this.WriteToFile(indexPath, $"\n{info.PackageName} - - {source}\n", info.PackageName, info.PackageVersion);
+
+                             });
 
                             try
                             {
@@ -776,7 +782,7 @@ namespace NugetUtility
         {
             var packageBase = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages", packageName, packageVersion);
             var filesInLocation = Directory.GetFiles(packageBase, "*.*", SearchOption.AllDirectories);
-            if(filesInLocation.Any(f => f.ToLower().Contains("license") && !f.ToLower().EndsWith(".pdf")))
+            if (filesInLocation.Any(f => f.ToLower().Contains("license") && !f.ToLower().EndsWith(".pdf")))
             {
                 return Path.Combine(packageBase, filesInLocation.Where(f => f.ToLower().Contains("license")).First());
             }
@@ -785,7 +791,7 @@ namespace NugetUtility
 
         private string TidyRTFText(string text)
         {
-            string content =  Regex.Replace(text, @"{[^}]*}", String.Empty);
+            string content = Regex.Replace(text, @"{[^}]*}", String.Empty);
             return Regex.Replace(content, @"\\.*?\\", string.Empty);
         }
 

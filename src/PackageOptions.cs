@@ -68,6 +68,9 @@ namespace NugetUtility
         [Option('n', "nuget", Default = true, HelpText = "Finds nuget licenses from the project's packages")]
         public bool NugetLicenses { get; set; }
 
+        [Option("npm", Default = true, HelpText = "Finds the NPM licenses")]
+        public bool NPMLicense { get; set; }
+
         [Usage(ApplicationAlias = "dotnet-project-licenses")]
         public static IEnumerable<Example> Examples
         {

@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace NugetUtility
@@ -25,8 +26,11 @@ namespace NugetUtility
                 return 1;
             }
 
+            await Program.CreateDirectories(options.OutputFileName);
+            var baseOutput = options.OutputFileName;
             if (options.NugetLicenses)
             {
+                options.OutputFileName = Path.Combine(baseOutput, "nuget\\");
                 Methods methods = new Methods(options);
                 var projectsWithPackages = await methods.GetPackages();
                 var mappedLibraryInfo = methods.MapPackagesToLibraryInfo(projectsWithPackages);
@@ -34,7 +38,7 @@ namespace NugetUtility
 
                 if (options.ExportLicenseTexts)
                 {
-                    await methods.ExportLicenseTexts(options.CombineLicenseTexts, mappedLibraryInfo);
+                    await methods.ExportLicenseTexts(mappedLibraryInfo);
                 }
 
                 if (options.Print == true)
@@ -56,8 +60,16 @@ namespace NugetUtility
 
             if (options.PythonLicenses)
             {
+                options.OutputFileName = Path.Combine(baseOutput, "python\\");
                 var python = new PyPi(options.PythonRequirementsLocation);
                 await python.Run(options.OutputFileName);
+            }
+
+            if (options.NPMLicense)
+            {
+                options.OutputFileName = Path.Combine(baseOutput, "npm\\");
+                var npm = new NPM(options.OutputFileName);
+                await npm.Run(options.ProjectDirectory);
             }
 
             return 0;
@@ -71,6 +83,21 @@ namespace NugetUtility
             {
                 throw new InvalidLicensesException<LibraryInfo>(invalidPackages, allowedLicenseType);
             }
+        }
+
+        private static async Task CreateDirectories(string basePath)
+        {
+            await Task.Run(() =>
+            {
+                var baseDirectory = Path.GetDirectoryName(basePath);
+                Directory.CreateDirectory(baseDirectory);
+                Directory.CreateDirectory(Path.Combine(baseDirectory, "python"));
+                Directory.CreateDirectory(Path.Combine(baseDirectory, "nuget"));
+                Directory.CreateDirectory(Path.Combine(baseDirectory, "npm"));
+                Directory.CreateDirectory(Path.Combine(baseDirectory, "other"));
+            });
+
+
         }
     }
 }
