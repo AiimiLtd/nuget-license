@@ -36,7 +36,9 @@ namespace NugetUtility
 
         public async Task Run(string inputLocation)
         {
+            Console.WriteLine("Looking for 3rdpartylicenses.txt files in artifacts folder...");
             var inputList = Directory.GetFiles(Path.Combine(inputLocation, "artifacts"), "3rdpartylicenses.txt", SearchOption.AllDirectories);
+            Console.WriteLine($"Found {inputList.Length}!");
 
             foreach (var inputFile in inputList)
             {
@@ -93,12 +95,7 @@ namespace NugetUtility
         private async Task HandleChunks(string[] sections)
         {
             var name = sections[0];
-            //if (this.completed.Contains(name))
-            //{
-            //    return;
-            //}
-            //this.completed.Add(name);
-
+            Console.WriteLine($"Dealing with: [{name}]");
             var licenseType = sections[1];
             var text = string.Join(Environment.NewLine, sections.Skip(2));
 
@@ -133,6 +130,8 @@ namespace NugetUtility
             await this.WriteToDetailed(name, text, $"{Path.Combine(URLBASE, name)}");
         }
 
+        #region Write To Files
+
         private void WriteToIndex(string name, string license, string url = "")
         {
             url = string.IsNullOrEmpty(url) ? Path.Combine(URLBASE, name) : url;
@@ -151,6 +150,8 @@ namespace NugetUtility
         {
             File.AppendAllTextAsync($"{Path.Combine(this.typesDirectory, $"{license.Replace(" ", "-")}.txt")}", $"{name}\n");
         }
+
+        #endregion
 
     }
 }

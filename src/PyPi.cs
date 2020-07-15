@@ -51,6 +51,7 @@ namespace NugetUtility
             var types = new Dictionary<string, List<string>>();
 
             var packages = new HashSet<(string, string)>();
+            Console.WriteLine("Building package list");
             foreach (var file in files)
             {
                 foreach (var line in await File.ReadAllLinesAsync(file))
@@ -59,6 +60,7 @@ namespace NugetUtility
                     packages.Add((splits[0], splits[1]));
                 }
             }
+            Console.WriteLine($"Found {packages.Count} packages!");
             var sortedPackages = packages.ToList(); //If we care about order
             sortedPackages.Sort((x, y) => x.Item1.CompareTo(y.Item1));
 
@@ -66,6 +68,7 @@ namespace NugetUtility
             {
                 var name = line.Item1;
                 var version = line.Item2;
+                Console.WriteLine($"Handling {name}");
                 try
                 {
                     var url = this.InsightMakerPackages().ContainsKey(name)
@@ -162,7 +165,7 @@ namespace NugetUtility
         {
             if (url.Contains("github"))
             {
-                var githubToken = "**************************REDACTED*****************************";
+                var githubToken = "69a37edea8276ab4a2183641d5ebd0a381218c22";
                 var endpoint = "https://api.github.com/repos";
                 var splits = url.Split('/', StringSplitOptions.RemoveEmptyEntries);
                 var author = "";

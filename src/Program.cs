@@ -30,6 +30,7 @@ namespace NugetUtility
             var baseOutput = options.OutputFileName;
             if (options.NugetLicenses)
             {
+                Console.WriteLine("Beginning Nuget License Aggregation...");
                 options.OutputFileName = Path.Combine(baseOutput, "nuget\\");
                 Methods methods = new Methods(options);
                 var projectsWithPackages = await methods.GetPackages();
@@ -60,6 +61,7 @@ namespace NugetUtility
 
             if (options.PythonLicenses)
             {
+                Console.WriteLine("Beginning Python License Aggregation...");
                 options.OutputFileName = Path.Combine(baseOutput, "python\\");
                 var python = new PyPi(options.PythonRequirementsLocation);
                 await python.Run(options.OutputFileName);
@@ -67,6 +69,7 @@ namespace NugetUtility
 
             if (options.NPMLicense)
             {
+                Console.WriteLine("Beginning NPM License Aggregation...");
                 options.OutputFileName = Path.Combine(baseOutput, "npm\\");
                 var npm = new NPM(options.OutputFileName);
                 await npm.Run(options.ProjectDirectory);

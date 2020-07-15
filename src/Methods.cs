@@ -629,8 +629,8 @@ namespace NugetUtility
         {
             var directory = GetOutputDirectory();
 
-            var failedPath = Path.Combine(directory, "FailedLicenses.txt");
-            var indexPath = Path.Combine(directory, "Index.txt");
+            var indexPath = Path.Combine(directory, "Index.csv");
+            var typesPath = Path.Combine(directory, "types");
 
             var outpath = "";
             if (_packageOptions.CombineLicenseTexts)
@@ -638,8 +638,18 @@ namespace NugetUtility
                 outpath = Path.Combine(directory, $"AllLicenses{DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss")}.txt");
             }
             Directory.CreateDirectory(directory);
+            if (Directory.Exists(typesPath))
+            {
+                Directory.Delete(typesPath, true);
+            }
+            Directory.CreateDirectory(typesPath);
+            File.Delete(indexPath);
+
+            WriteOutput(() => $"Found [{infos.Count}] packages!", logLevel: LogLevel.Information);
             foreach (var info in infos)
             {
+
+                WriteOutput(() => $"Handling {info.PackageName}", logLevel: LogLevel.Information);
                 var source = string.IsNullOrEmpty(info.LicenseUrl) ? info.PackageUrl : info.LicenseUrl;
 
                 if (string.IsNullOrEmpty(outpath))
@@ -669,6 +679,11 @@ namespace NugetUtility
                 {
                     source = $"{info.PackageUrl}/blob/master/LICENSE";
                 }
+                if (source.Contains("www.apache.org/licenses/"))
+                {
+                    var ending = source.Substring(source.LastIndexOf('/') + 1);
+                    source = $"https://www.apache.org/licenses/{ending}.txt";
+                }
                 if (source.StartsWith("https://github.com", StringComparison.Ordinal) && source.Contains("/blob/", StringComparison.Ordinal))
                 {
                     source = source.Replace("/blob/", "/raw/", StringComparison.Ordinal);
@@ -680,6 +695,10 @@ namespace NugetUtility
                 if (source.Contains("dropbox/dropbox-sdk-dotnet/raw/master", StringComparison.Ordinal))
                 {
                     source = source.Replace("/master/", "/master/dropbox-sdk-dotnet/", StringComparison.Ordinal);
+                }
+                if (info.PackageName == "Google.Apis")
+                {
+                    Console.WriteLine();
                 }
                 do
                 {
@@ -693,7 +712,6 @@ namespace NugetUtility
                             {
                                 WriteOutput($"{request.RequestUri} failed due to {response.StatusCode}!", logLevel: LogLevel.Error);
                                 await this.WriteToFile(outpath, $"NO LICENSE TEXT RETRIEVED\nProvided URL: {source}\nTry: https://www.nuget.org/packages/{info.PackageName}/ \n", info.PackageName, info.PackageVersion);
-                                await this.WriteToFile(failedPath, $"{source}\n", info.PackageName, info.PackageVersion);
                                 break;
                             }
 
@@ -708,12 +726,10 @@ namespace NugetUtility
                                 continue;
                             }
 
-                            await Task.Run(async () =>
-                             {
-                                  //Take first 3 lines of the content.
-                                 await this.WriteToFile(indexPath, $"\n{info.PackageName} - - {source}\n", info.PackageName, info.PackageVersion);
-
-                             });
+                            //Take first 3 lines of the content for license type maybe?
+                            var type = this.DetermineLicenseType(source, await response.Content.ReadAsStringAsync());
+                            await this.WriteToIndex(indexPath, info.PackageName, type, source);
+                            await this.WriteToTypes(typesPath, info.PackageName, type);
 
                             try
                             {
@@ -735,9 +751,11 @@ namespace NugetUtility
                     }
                     catch (Exception Ex)
                     {
-                        WriteOutput($"License retrieval error for {info.PackageName}!", logLevel: LogLevel.Error);
+                        WriteOutput(() => $"License retrieval error for {info.PackageName}!\n{Ex.Message}", logLevel: LogLevel.Error);
                         await this.WriteToFile(outpath, $"NO LICENSE TEXT RETRIEVED.\nAn error ccured while attempting to retrive the licence information from {source}.\n", info.PackageName, info.PackageVersion);
-                        await this.WriteToFile(failedPath, "\n", info.PackageName, info.PackageVersion);
+                        var type = this.DetermineLicenseType(source, "");
+                        await this.WriteToIndex(indexPath, info.PackageName, type, source);
+                        await this.WriteToTypes(typesPath, info.PackageName, type);
                         break;
                     }
                 } while (true);
@@ -752,6 +770,15 @@ namespace NugetUtility
             await File.AppendAllTextAsync(outpath, content);
         }
 
+        private async Task WriteToIndex(string indexPath, string name, string licenseType, string url)
+        {
+            await File.AppendAllTextAsync(indexPath, $"{name},{licenseType},{url}\n");
+        }
+
+        private async Task WriteToTypes(string typesPath, string name, string license)
+        {
+            await File.AppendAllTextAsync(Path.Combine(typesPath, $"{license}.txt"), $"{name}\n");
+        }
         private bool IsGithub(string uri)
         {
             return uri.StartsWith("https://github.com", StringComparison.Ordinal);
@@ -776,7 +803,7 @@ namespace NugetUtility
             return uri;
         }
 
-        private bool isHTMLPage(string content) => Regex.IsMatch(content, @"<[^>]*>") ? true : false;
+        private bool isHTMLPage(string content) => Regex.IsMatch(content, @"<[^>]*>");
 
         private string SearchInPackageDirectory(string packageName, string packageVersion)
         {
@@ -797,9 +824,29 @@ namespace NugetUtility
 
         private string TidyHTMLText(string text)
         {
-            // Combining the regex statements with | doesn't resolve properly.
             string content = Regex.Replace(text, @"<[^>]*>", String.Empty);
             return Regex.Replace(content, @"^\s+$[\r\n]*", string.Empty, RegexOptions.Multiline);
+        }
+
+        private string DetermineLicenseType(string url, string content)
+        {
+            if (LicenseToUrlMappings.Default.ContainsKey(url))
+            {
+                return LicenseToUrlMappings.Default[url];
+            }
+            if (url.Contains("licenses.nuget.org/"))
+            {
+                return url.Substring(url.LastIndexOf('/') + 1);
+            }
+            if (url.Contains("apache.org/licenses/"))
+            {
+                return $"Apache-{url.Substring(url.LastIndexOf('/') + 1)}";
+            }
+            if (url.Contains("github.com/"))
+            {
+                return content.Split('\n', StringSplitOptions.RemoveEmptyEntries)[0];
+            }
+            return "Other";
         }
 
         private Dictionary<string, string> InsightMakerPackages() => new Dictionary<string, string>()
@@ -815,7 +862,10 @@ namespace NugetUtility
             {"System.Interactive.Async","https://github.com/dotnet/reactive/blob/master/LICENSE" },
             {"Microsoft.Graph", "https://www.nuget.org/packages/Microsoft.Graph/3.8.0/License" },
             {"Microsoft.Graph.Core", "https://www.nuget.org/packages/Microsoft.Graph.Core/1.20.1/License" },
-            {"NUnit", "https://www.nuget.org/packages/NUnit/3.12.0/License" }
+            {"NUnit", "https://www.nuget.org/packages/NUnit/3.12.0/License" },
+            {"Microsoft.Database.Collections.Generic", "https://github.com/microsoft/ManagedEsent/blob/master/LICENSE.md" },
+            {"Microsoft.Database.Isam", "https://github.com/microsoft/ManagedEsent/blob/master/LICENSE.md" },
+            {"ManagedEsent", "https://github.com/microsoft/ManagedEsent/blob/master/LICENSE.md" }
         };
 
     }

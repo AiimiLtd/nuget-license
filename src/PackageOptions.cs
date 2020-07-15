@@ -59,7 +59,7 @@ namespace NugetUtility
         [Option('c', "combine", Default = true, HelpText = "Combines the license texts as one")]
         public bool CombineLicenseTexts { get; set; }
 
-        [Option("python", Default = false, HelpText = "Finds python licenses from requirements files")]
+        [Option("python", Default = true, HelpText = "Finds python licenses from requirements files")]
         public bool PythonLicenses { get; set; }
 
         [Option("requirements-location", Default = @".\scripts\PythonRestService\")]
