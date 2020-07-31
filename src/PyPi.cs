@@ -18,15 +18,27 @@ namespace NugetUtility
 {
     class PyPi
     {
-        private string requirementsLocation;
+        private PackageOptions options;
         private List<string> files;
         private HttpClient client;
 
-        public PyPi(string location)
+        private Credentials gitCredentials;
+
+        public PyPi(PackageOptions options)
         {
-            this.requirementsLocation = location;
+            this.options = options;
             this.files = GetRelevantFilesInLocation();
             this.client = new HttpClient();
+
+            var userAndToken = options.GitHubToken?.Split(":");
+            if (userAndToken.Length == 2)
+            {
+                this.gitCredentials = new Credentials(userAndToken[0], userAndToken[1]);
+            }
+            else
+            {
+                throw new Exception("Github token must be formatted \"user:token\". Get a token from Settings => Developer Settings => Personal Access Tokens");
+            }
         }
 
         public async Task Run(string outputFile)
@@ -44,9 +56,9 @@ namespace NugetUtility
             Directory.CreateDirectory(typesDirectory);
 
             var timeNow = DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss");
-            var indexPath = Path.Combine(directory, $"Index.csv");
+            var indexPath = Path.Combine(directory, $"python-index.csv");
             File.Delete(indexPath);
-            var output = Path.Combine(directory, $"PythonLicenses{timeNow}.txt");
+            var output = Path.Combine(directory, $"python-digest.txt");
 
             var types = new Dictionary<string, List<string>>();
 
@@ -85,6 +97,7 @@ namespace NugetUtility
                         {
                             license = "MIT";
                         }
+
                         if (name == "tornado")
                         {
                             license = "Apache2.0";
@@ -115,10 +128,12 @@ namespace NugetUtility
                         try
                         {
                             this.PackageToLicenseText().TryGetValue(name, out var projectURL);
+
                             if (string.IsNullOrEmpty(projectURL))
                             {
                                 projectURL = content.SelectToken("info").SelectToken("home_page").ToString();
                             }
+
                             if (name.Contains("jupyter"))
                             {
                                 projectURL = "https://github.com/jupyter/jupyter_client";
@@ -165,7 +180,6 @@ namespace NugetUtility
         {
             if (url.Contains("github"))
             {
-                var githubToken = "69a37edea8276ab4a2183641d5ebd0a381218c22";
                 var endpoint = "https://api.github.com/repos";
                 var splits = url.Split('/', StringSplitOptions.RemoveEmptyEntries);
                 var author = "";
@@ -183,7 +197,8 @@ namespace NugetUtility
                 var githubUrl = Path.Combine(endpoint, author, repo, "license");
 
                 var githubClient = new GitHubClient(new ProductHeaderValue("LicenseExtractor"), new Uri(githubUrl));
-                var basicAuth = new Credentials("lmorgan86", githubToken);
+
+                var basicAuth = this.gitCredentials;
                 githubClient.Credentials = basicAuth;
 
                 var licenseContents = await githubClient.Repository.GetLicenseContents(author, repo);
@@ -287,7 +302,7 @@ namespace NugetUtility
         private List<string> GetRelevantFilesInLocation()
         {
             var list = new List<string>();
-            foreach (var file in Directory.GetFiles(this.requirementsLocation))
+            foreach (var file in Directory.GetFiles(this.options.PythonRequirementsLocation))
             {
                 if (file.Contains("requirements"))
                 {

@@ -629,13 +629,13 @@ namespace NugetUtility
         {
             var directory = GetOutputDirectory();
 
-            var indexPath = Path.Combine(directory, "Index.csv");
+            var indexPath = Path.Combine(directory, "nuget-index.csv");
             var typesPath = Path.Combine(directory, "types");
 
             var outpath = "";
             if (_packageOptions.CombineLicenseTexts)
             {
-                outpath = Path.Combine(directory, $"AllLicenses{DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss")}.txt");
+                outpath = Path.Combine(directory, $"nuget-digest.txt");
             }
             Directory.CreateDirectory(directory);
             if (Directory.Exists(typesPath))

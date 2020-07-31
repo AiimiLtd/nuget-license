@@ -20,6 +20,9 @@ namespace NugetUtility
         [Option('j', "json", Default = false, HelpText = "Saves licenses list in a json file (licenses.json)")]
         public bool JsonOutput { get; set; }
 
+        [Option('g', "github-credentials", Required = true, Default = false, HelpText = "Username and token to use when accessing GitHub, formatted \"user:token\". Get a token from Settings => Developer Settings => Personal Access Tokens with read:packages permissions")]
+        public string GitHubToken { get; set; }
+
         [Option("include-project-file", Default = false, HelpText = "Adds project file path to information when enabled.")]
         public bool IncludeProjectFile { get; set; }
 

@@ -63,7 +63,7 @@ namespace NugetUtility
             {
                 Console.WriteLine("Beginning Python License Aggregation...");
                 options.OutputFileName = Path.Combine(baseOutput, "python\\");
-                var python = new PyPi(options.PythonRequirementsLocation);
+                var python = new PyPi(options);
                 await python.Run(options.OutputFileName);
             }
 

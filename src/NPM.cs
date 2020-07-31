@@ -21,8 +21,8 @@ namespace NugetUtility
         {
             var directory = Path.GetDirectoryName(outputFileName);
             this.typesDirectory = Path.Combine(directory, "types");
-            this.indexPath = Path.Combine(outputFileName, "Index.csv");
-            this.textPath = Path.Combine(directory, $"NPMLicenses{DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss")}.txt");
+            this.indexPath = Path.Combine(outputFileName, "npm-index.csv");
+            this.textPath = Path.Combine(directory, $"npm-digest.txt");
             this.completed = new HashSet<string>();
 
             if (Directory.Exists(this.typesDirectory))
