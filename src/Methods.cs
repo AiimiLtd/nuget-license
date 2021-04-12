@@ -663,14 +663,12 @@ namespace NugetUtility
                 }
 
                 // Correct some uris
-                try
+                if (this.InsightMakerPackages().TryGetValue(info.PackageName, out var newSource))
                 {
-                    source = this.InsightMakerPackages()[info.PackageName];
+                    source = newSource;
                 }
-                catch
-                {
-                    // The author of the package we're currently looking at set up the license properly so we don't have to go and fix it manually, hooray!
-                }
+
+
                 if (info.PackageUrl == "https://github.com/elastic/elasticsearch-net")
                 {
                     source = "https://github.com/elastic/elasticsearch-net/blob/master/license.txt";
@@ -692,13 +690,9 @@ namespace NugetUtility
                 {
                     source = source.Replace("/dotnet/corefx/", "/dotnet/runtime/", StringComparison.Ordinal);
                 }
-                if (source.Contains("dropbox/dropbox-sdk-dotnet/raw/master", StringComparison.Ordinal))
+                if (source.StartsWith("https://github.com/dotnet/runtime/", StringComparison.Ordinal))
                 {
-                    source = source.Replace("/master/", "/master/dropbox-sdk-dotnet/", StringComparison.Ordinal);
-                }
-                if (info.PackageName == "Google.Apis")
-                {
-                    Console.WriteLine();
+                    source = "https://raw.githubusercontent.com/dotnet/runtime/main/LICENSE.TXT";
                 }
                 do
                 {
@@ -842,7 +836,7 @@ namespace NugetUtility
             {
                 return $"Apache-{url.Substring(url.LastIndexOf('/') + 1)}";
             }
-            if (url.Contains("github.com/"))
+            if (url.Contains("github.com/") && !string.IsNullOrEmpty(content))
             {
                 return content.Split('\n', StringSplitOptions.RemoveEmptyEntries)[0];
             }
@@ -852,20 +846,25 @@ namespace NugetUtility
         private Dictionary<string, string> InsightMakerPackages() => new Dictionary<string, string>()
         {
             {"CommandLineParser", "https://github.com/commandlineparser/commandline/blob/master/License.md" },
+            {"Dropbox.Api", "https://raw.githubusercontent.com/dropbox/dropbox-sdk-dotnet/main/LICENSE" },
             {"Microsoft.SharePointOnline.CSOM","https://download.microsoft.com/download/7/4/0/740830AA-F5E3-48A6-8645-EC3F82A17C81/MicrosoftSharePointClientComponentsEULA.rtf"},
             {"GeoUK", "https://licenses.nuget.org/LGPL-3.0-or-later" },
+            {"GitInfo", "https://github.com/devlooped/GitInfo/blob/main/LICENSE" },
             {"DotNetSeleniumExtras.WaitHelpers","https://github.com/DotNetSeleniumTools/DotNetSeleniumExtras/blob/master/LICENSE" },
             {"PuppeteerSharp", "https://github.com/hardkoded/puppeteer-sharp/blob/master/LICENSE" },
             {"Select.Pdf.NetCore", "https://selectpdf.com/eula/" },
             {"ModulusChecker", "https://github.com/pauldambra/ModulusChecker/blob/master/MIT-LICENSE.txt" },
+            {"ModulusChecker.NetCore", "https://github.com/pauldambra/ModulusChecker/blob/master/MIT-LICENSE.txt" },
             {"RestSharp", "https://github.com/restsharp/RestSharp/blob/dev/LICENSE.txt" },
-            {"System.Interactive.Async","https://github.com/dotnet/reactive/blob/master/LICENSE" },
+            {"System.Interactive.Async","https://github.com/dotnet/reactive/blob/main/LICENSE" },
             {"Microsoft.Graph", "https://www.nuget.org/packages/Microsoft.Graph/3.8.0/License" },
             {"Microsoft.Graph.Core", "https://www.nuget.org/packages/Microsoft.Graph.Core/1.20.1/License" },
             {"NUnit", "https://www.nuget.org/packages/NUnit/3.12.0/License" },
+            {"NUnit3TestAdapter", "https://docs.nunit.org/articles/vs-test-adapter/Adapter-License.html" },
             {"Microsoft.Database.Collections.Generic", "https://github.com/microsoft/ManagedEsent/blob/master/LICENSE.md" },
             {"Microsoft.Database.Isam", "https://github.com/microsoft/ManagedEsent/blob/master/LICENSE.md" },
-            {"ManagedEsent", "https://github.com/microsoft/ManagedEsent/blob/master/LICENSE.md" }
+            {"Microsoft.Extensions.Logging.Log4Net.AspNetCore", "https://github.com/huorswords/Microsoft.Extensions.Logging.Log4Net.AspNetCore/blob/develop/LICENSE" },
+            {"ManagedEsent", "https://github.com/microsoft/ManagedEsent/blob/master/LICENSE.md" },
         };
 
     }

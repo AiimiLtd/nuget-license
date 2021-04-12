@@ -168,6 +168,10 @@ namespace NugetUtility
                     else
                     {
                         Console.WriteLine($"Failed to get license from {line.ToString()} - {ex.Message}");
+                        if (!string.IsNullOrEmpty(ex.InnerException.Message))
+                        {
+                            Console.WriteLine($"Inner Exception: {ex.InnerException}");
+                        }
                     }
                 }
             }
